@@ -1,0 +1,16 @@
+{
+  "name": "deepfri-automation",
+  "version": "1.0.0",
+  "description": "Automated DeepFRI protein function prediction",
+  "main": "deepfri.ts",
+  "scripts": {
+    "start": "bun run main.ts"
+  },
+  "dependencies": {
+    "puppeteer": "^21.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  }
+}
