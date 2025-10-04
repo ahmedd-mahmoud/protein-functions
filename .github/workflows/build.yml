@@ -18,6 +18,8 @@ jobs:
   build-windows:
     if: ${{ github.event.inputs.os == 'all' || github.event.inputs.os == 'windows' }}
     runs-on: windows-latest
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: false
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
