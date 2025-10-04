@@ -2,7 +2,7 @@
   "name": "deepfri-automation",
   "version": "1.0.0",
   "description": "Automated DeepFRI protein function prediction",
-  "main": "deepfri.ts",
+  "main": "main.ts",
   "scripts": {
     "start": "bun run main.ts"
   },

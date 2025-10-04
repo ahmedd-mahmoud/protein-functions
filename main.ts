@@ -1,6 +1,6 @@
 import puppeteer from "puppeteer";
 import * as XLSX from "xlsx";
-import { readdir, readFile } from "fs/promises";
+import { readdir, readFile, mkdir, copyFile } from "fs/promises";
 import { join } from "path";
 
 class DeepFRIAutomator {
@@ -12,9 +12,12 @@ class DeepFRIAutomator {
       headless: false,
       defaultViewport: null,
       args: ["--start-maximized"],
+      protocolTimeout: 300000,
     });
     this.page = await this.browser.newPage();
-    await this.page.goto("https://beta.deepfri.flatironinstitute.org");
+    await this.page.goto("https://beta.deepfri.flatironinstitute.org", {
+      waitUntil: "networkidle2",
+    });
     await this.page.waitForTimeout(8000);
   }
 
@@ -94,8 +97,8 @@ class DeepFRIAutomator {
             "Prediction enqueued. Check the dashboard for status."
           );
         },
-        { timeout: 300000 }
-      ); // 5 minutes
+        { timeout: 600000 }
+      ); // 10 minutes
 
       console.log('8. Clicking "To dashboard" link...');
       const toDashboardClicked = await this.clickByText("To dashboard");
@@ -177,52 +180,176 @@ class DeepFRIAutomator {
     }, rowIndex);
   }
 
-  async extractProteinData(): Promise<any> {
-    await this.page.waitForTimeout(5000);
+  async downloadTags(fileName: string): Promise<boolean> {
+    try {
+      // Set download path with absolute path
+      const client = await this.page.target().createCDPSession();
+      const downloadPath = join(process.cwd(), "output", "tags");
+      await client.send("Page.setDownloadBehavior", {
+        behavior: "allow",
+        downloadPath: downloadPath,
+      });
 
-    return await this.page.evaluate(() => {
-      const extractPrediction = (sectionName: string) => {
-        const elements = Array.from(document.querySelectorAll("*"));
-        const sectionEl = elements.find((el) =>
-          el.textContent?.includes(sectionName)
+      // Get list of files before download
+      const filesBefore = await readdir("output/tags").catch(() => []);
+
+      // Look for Tags section and Download button with better targeting
+      const downloadClicked = await this.page.evaluate(() => {
+        // First, find Tags section
+        const allElements = Array.from(document.querySelectorAll("*"));
+        const tagsElements = allElements.filter(
+          (el) => el.textContent?.includes("Tags") && el.textContent.length < 50
         );
 
-        if (!sectionEl) return null;
+        if (tagsElements.length === 0) return false;
 
-        let current = sectionEl.nextElementSibling;
-        let attempts = 0;
-
-        while (current && attempts < 15) {
-          if (current.tagName === "TABLE") {
-            const rows = current.querySelectorAll("tr");
-            if (rows.length > 1) {
-              const firstDataRow = rows[1];
-              const cells = Array.from(firstDataRow.querySelectorAll("td"));
-              if (cells.length >= 3) {
-                return {
-                  go: cells[0]?.textContent?.trim() || "",
-                  name: cells[1]?.textContent?.trim() || "",
-                  score: cells[2]?.textContent?.trim() || "",
-                };
+        // Look for download buttons near Tags sections
+        for (const tagsEl of tagsElements) {
+          const container =
+            tagsEl.closest("div, section, article") || tagsEl.parentElement;
+          if (container) {
+            const downloadBtns = container.querySelectorAll(
+              'button, a, [role="button"]'
+            );
+            for (const btn of downloadBtns) {
+              const text = btn.textContent?.trim().toLowerCase() || "";
+              if (text === "download" || text.includes("download")) {
+                (btn as HTMLElement).click();
+                return true;
               }
             }
           }
-          current = current.nextElementSibling;
-          attempts++;
         }
-        return null;
+        return false;
+      });
+
+      if (downloadClicked) {
+        await this.page.waitForTimeout(5000);
+
+        // Find the new file and rename it
+        const filesAfter = await readdir("output/tags").catch(() => []);
+        const newFiles = filesAfter.filter((f) => !filesBefore.includes(f));
+
+        if (newFiles.length > 0) {
+          const downloadedFile = newFiles[0];
+          const oldPath = join("output/tags", downloadedFile);
+          const newPath = join("output/tags", `${fileName}.json`);
+
+          try {
+            await copyFile(oldPath, newPath);
+            await readFile(oldPath).then(() => {
+              // Delete old file after successful copy
+              require("fs").unlinkSync(oldPath);
+            });
+            console.log(`✓ Downloaded and renamed tags for ${fileName}`);
+          } catch (renameError) {
+            console.log(`✓ Downloaded tags for ${fileName} (rename failed)`);
+          }
+        } else {
+          console.log(`✓ Downloaded tags for ${fileName}`);
+        }
+        return true;
+      } else {
+        console.log(`⚠ No download button found for ${fileName}`);
+        return false;
+      }
+    } catch (error) {
+      console.error(`Tags download error for ${fileName}:`, error);
+      return false;
+    }
+  }
+
+  async extractProteinData(): Promise<any> {
+    await this.page.waitForTimeout(8000);
+
+    return await this.page.evaluate(() => {
+      const extractTop3Predictions = (sectionName: string) => {
+        // Find all tables on the page
+        const tables = Array.from(document.querySelectorAll("table"));
+
+        // Look for section header in the page
+        const sectionHeader = `${sectionName} - GO Term Predictions`;
+        const allElements = Array.from(document.querySelectorAll("*"));
+
+        const sectionEl = allElements.find((el) => {
+          const text = el.textContent?.trim() || "";
+          return (
+            text.includes(sectionHeader) &&
+            !text.includes("No predictions above threshold")
+          );
+        });
+
+        if (!sectionEl) return [];
+
+        // Find the closest table to this section
+        let closestTable: any = null;
+        let minDistance = Infinity;
+
+        tables.forEach((table) => {
+          // Calculate rough distance by DOM position
+          const sectionRect = sectionEl.getBoundingClientRect();
+          const tableRect = table.getBoundingClientRect();
+          const distance = Math.abs(tableRect.top - sectionRect.bottom);
+
+          if (distance < minDistance && tableRect.top > sectionRect.top) {
+            minDistance = distance;
+            closestTable = table;
+          }
+        });
+
+        if (!closestTable) {
+          return [];
+        }
+
+        const rows = closestTable.querySelectorAll("tr");
+        const results = [];
+
+        // Get first 3 data rows (skip header)
+        for (let i = 1; i <= Math.min(3, rows.length - 1); i++) {
+          const row = rows[i];
+          const cells = Array.from(row.querySelectorAll("td"));
+          if (cells.length >= 3) {
+            results.push({
+              name: cells[0]?.textContent?.trim() || "",
+              go: cells[1]?.textContent?.trim() || "",
+              score: cells[2]?.textContent?.trim() || "",
+            });
+          }
+        }
+
+        return results;
       };
 
       const proteinId = window.location.pathname.split("/").pop() || "";
 
+      // Try structure-based first, fallback to sequence-based
+      const structMF = extractTop3Predictions(
+        "Structure-Based Molecular Function"
+      );
+      const structBP = extractTop3Predictions(
+        "Structure-Based Biological Process"
+      );
+      const structEC = extractTop3Predictions(
+        "Structure-Based Enzyme Commission"
+      );
+
+      const seqMF = extractTop3Predictions("Sequence-Based Molecular Function");
+      const seqBP = extractTop3Predictions("Sequence-Based Biological Process");
+      const seqEC = extractTop3Predictions("Sequence-Based Enzyme Commission");
+
       return {
         proteinId: proteinId.replace(/[^A-Za-z0-9]/g, ""),
-        wholeMF: extractPrediction("Structure-Based Molecular Function"),
-        wholeBP: extractPrediction("Structure-Based Biological Process"),
-        wholeEC: extractPrediction("Structure-Based Enzyme Commission"),
-        cutMF: extractPrediction("Sequence-Based Molecular Function"),
-        cutBF: extractPrediction("Sequence-Based Biological Process"),
-        cutEC: extractPrediction("Sequence-Based Enzyme Commission"),
+        molecularFunction:
+          structMF.length > 0 ? structMF.slice(0, 3) : seqMF.slice(0, 3),
+        biologicalProcess:
+          structBP.length > 0 ? structBP.slice(0, 3) : seqBP.slice(0, 3),
+        enzymeCommission:
+          structEC.length > 0 ? structEC.slice(0, 3) : seqEC.slice(0, 3),
+        usedSequenceBased: {
+          mf: structMF.length === 0 && seqMF.length > 0,
+          bp: structBP.length === 0 && seqBP.length > 0,
+          ec: structEC.length === 0 && seqEC.length > 0,
+        },
       };
     });
   }
@@ -230,7 +357,7 @@ class DeepFRIAutomator {
   countAminoAcids(pdbContent: string): number {
     const lines = pdbContent.split("\n");
     const atomLines = lines.filter((line) => line.startsWith("ATOM"));
-    const residues = new Set();
+    const residues = new Set<string>();
 
     atomLines.forEach((line) => {
       const residueNum = line.substring(22, 26).trim();
@@ -256,6 +383,10 @@ class DeepFRIAutomator {
     const rowCount = await this.getTableRowCount();
     console.log(`Found ${rowCount} protein rows`);
 
+    // Get PDB file names for mapping
+    const pdbFiles = await readdir("pdb_files");
+    const sortedPdbFiles = pdbFiles.sort(); // Ensure consistent order
+
     // Process each row
     for (let i = 0; i < rowCount; i++) {
       console.log(`\nProcessing protein ${i + 1}/${rowCount}...`);
@@ -267,42 +398,34 @@ class DeepFRIAutomator {
       }
 
       console.log("Waiting for navigation to complete...");
-      await this.page.waitForTimeout(5000);
+      await this.page.waitForTimeout(8000);
 
       const extracted = await this.extractProteinData();
-      if (extracted.proteinId) {
-        // Get amino acid count
-        let aaCount = 0;
-        try {
-          const pdbFiles = await readdir("pdb_files");
-          const matchingFile = pdbFiles.find((f) =>
-            f.includes(extracted.proteinId)
-          );
-          if (matchingFile) {
-            const pdbContent = await readFile(
-              join("pdb_files", matchingFile),
-              "utf-8"
-            );
-            aaCount = this.countAminoAcids(pdbContent);
-          }
-        } catch (e) {
-          aaCount = Math.floor(Math.random() * 500) + 100;
-        }
+      if (extracted && extracted.proteinId) {
+        // Use the PDB file name based on the row index (assuming same order)
+        const pdbFileName = sortedPdbFiles[i] || `${extracted.proteinId}.pdb`;
+        const fileNameWithoutExt = pdbFileName.replace(".pdb", "");
+
+        // Download tags
+        await this.downloadTags(fileNameWithoutExt);
 
         results.push({
+          fileName: fileNameWithoutExt,
           proteinId: extracted.proteinId,
-          geneId: `MMYC01_${extracted.proteinId}`,
-          uniprot: extracted.proteinId,
-          aa: aaCount,
-          wholeMF: extracted.wholeMF,
-          wholeBP: extracted.wholeBP,
-          wholeEC: extracted.wholeEC,
-          cutMF: extracted.cutMF,
-          cutBF: extracted.cutBF,
-          cutEC: extracted.cutEC,
+          molecularFunction: extracted.molecularFunction,
+          biologicalProcess: extracted.biologicalProcess,
+          enzymeCommission: extracted.enzymeCommission,
+          usedSequenceBased: extracted.usedSequenceBased,
         });
 
-        console.log(`✓ Extracted data for ${extracted.proteinId}`);
+        console.log(`✓ Extracted data for ${fileNameWithoutExt}`);
+        console.log(
+          `  - MF: ${extracted.molecularFunction.length} predictions`
+        );
+        console.log(
+          `  - BP: ${extracted.biologicalProcess.length} predictions`
+        );
+        console.log(`  - EC: ${extracted.enzymeCommission.length} predictions`);
       }
 
       // Return to dashboard for next protein
@@ -316,61 +439,41 @@ class DeepFRIAutomator {
     return results;
   }
 
-  async saveResults(results: any[]) {
-    const data = results.map((result) => ({
-      "protein ID": result.proteinId,
-      "Gene ID": result.geneId,
-      uniprot: result.uniprot,
-      AA: result.aa,
-      Name: result.wholeMF?.name || "",
-      GO: result.wholeMF?.go || "",
-      Score: result.wholeMF?.score || "",
-      Name_1: result.wholeBP?.name || "",
-      GO_1: result.wholeBP?.go || "",
-      Score_1: result.wholeBP?.score || "",
-      Name_2: result.wholeEC?.name || "",
-      GO_2: result.wholeEC?.go || "",
-      Score_2: result.wholeEC?.score || "",
-      Name_3: result.cutMF?.name || "",
-      GO_3: result.cutMF?.go || "",
-      Score_3: result.cutMF?.score || "",
-      Name_4: result.cutBF?.name || "",
-      GO_4: result.cutBF?.go || "",
-      Score_4: result.cutBF?.score || "",
-      Name_5: result.cutEC?.name || "",
-      GO_5: result.cutEC?.go || "",
-      Score_5: result.cutEC?.score || "",
-    }));
+  async saveResults(results: any[]): Promise<void> {
+    const formatSection = (
+      predictions: any[]
+    ): { names: string; gos: string; scores: string } => {
+      if (predictions.length === 0) {
+        return { names: "", gos: "", scores: "" };
+      }
+      const names = predictions.map((p: any) => p.name).join(", ");
+      const gos = predictions.map((p: any) => p.go).join(", ");
+      const scores = predictions.map((p: any) => p.score).join(", ");
+      return { names, gos, scores };
+    };
 
+    const data = results.map((result) => {
+      const mf = formatSection(result.molecularFunction);
+      const bp = formatSection(result.biologicalProcess);
+      const ec = formatSection(result.enzymeCommission);
+
+      return {
+        "file name": result.fileName,
+        "Name ": mf.names,
+        GO: mf.gos,
+        Score: mf.scores,
+        "Name _1": bp.names,
+        GO_1: bp.gos,
+        Score_1: bp.scores,
+        Name_2: ec.names,
+        GO_2: ec.gos,
+        Score_2: ec.scores,
+      };
+    });
+
+    // Create headers matching template
     const headers = [
       [
-        "",
-        "",
-        "",
-        "",
-        "WHOLE PROTEIN",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "CUT DOMAIN",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-      ],
-      [
-        "",
-        "",
-        "",
         "",
         "Molecular function",
         "",
@@ -381,34 +484,13 @@ class DeepFRIAutomator {
         "Enzyme comssion",
         "",
         "",
-        "Molecular function",
-        "",
-        "",
-        "Biological function",
-        "",
-        "",
-        "Enzyme comssion",
-        "",
-        "",
       ],
       [
-        "protein ID",
-        "Gene ID",
-        "uniprot",
-        "AA",
-        "Name",
+        "file name",
+        "Name ",
         "GO",
         "Score",
-        "Name",
-        "GO",
-        "Score",
-        "Name",
-        "GO",
-        "Score",
-        "Name",
-        "GO",
-        "Score",
-        "Name",
+        "Name ",
         "GO",
         "Score",
         "Name",
@@ -418,13 +500,69 @@ class DeepFRIAutomator {
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(headers);
-    XLSX.utils.sheet_add_json(ws, data, { origin: "A4", skipHeader: true });
+    XLSX.utils.sheet_add_json(ws, data, { origin: "A3", skipHeader: true });
+
+    // Add light red background for sequence-based results
+    const lightRedFill = { fgColor: { rgb: "FFCCCC" } };
+
+    results.forEach((result, rowIndex) => {
+      const excelRow = rowIndex + 3; // +3 because of headers
+
+      if (result.usedSequenceBased.mf && result.molecularFunction.length > 0) {
+        [1, 2, 3].forEach((col) => {
+          const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: col });
+          if (ws[cellRef] && ws[cellRef].v) {
+            ws[cellRef].s = { fill: lightRedFill };
+          }
+        });
+      }
+
+      if (result.usedSequenceBased.bp && result.biologicalProcess.length > 0) {
+        [4, 5, 6].forEach((col) => {
+          const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: col });
+          if (ws[cellRef] && ws[cellRef].v) {
+            ws[cellRef].s = { fill: lightRedFill };
+          }
+        });
+      }
+
+      if (result.usedSequenceBased.ec && result.enzymeCommission.length > 0) {
+        [7, 8, 9].forEach((col) => {
+          const cellRef = XLSX.utils.encode_cell({ r: excelRow - 1, c: col });
+          if (ws[cellRef] && ws[cellRef].v) {
+            ws[cellRef].s = { fill: lightRedFill };
+          }
+        });
+      }
+    });
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Results");
 
-    XLSX.writeFile(wb, "deepfri_results.xlsx");
-    console.log("\n✅ Results saved to deepfri_results.xlsx");
+    // Create output folder structure
+    await mkdir("output", { recursive: true });
+    await mkdir("output/tags", { recursive: true });
+
+    XLSX.writeFile(wb, "output/deepfri_results.xlsx");
+    console.log("\n✅ Results saved to output/deepfri_results.xlsx");
+
+    const sequenceBasedCount = results.reduce((acc, r) => {
+      return (
+        acc +
+        (r.usedSequenceBased.mf ? 1 : 0) +
+        (r.usedSequenceBased.bp ? 1 : 0) +
+        (r.usedSequenceBased.ec ? 1 : 0)
+      );
+    }, 0);
+
+    console.log(`\n📊 Processing Summary:`);
+    console.log(`- Total proteins processed: ${results.length}`);
+    console.log(`- Sequence-based predictions used: ${sequenceBasedCount}`);
+    console.log(
+      `- Structure-based predictions used: ${
+        results.length * 3 - sequenceBasedCount
+      }`
+    );
   }
 
   async close() {
