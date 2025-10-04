@@ -18,8 +18,6 @@ jobs:
   build-windows:
     if: ${{ github.event.inputs.os == 'all' || github.event.inputs.os == 'windows' }}
     runs-on: windows-latest
-    env:
-      CSC_IDENTITY_AUTO_DISCOVERY: false
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -27,11 +25,11 @@ jobs:
           bun-version: latest
       - run: bun install
       - run: bun run build
-      - run: bun run build:win
+      - run: bun run forge:make
       - uses: actions/upload-artifact@v4
         with:
           name: windows-build
-          path: release/
+          path: out/
 
   build-macos:
     if: ${{ github.event.inputs.os == 'all' || github.event.inputs.os == 'macos' }}
@@ -43,11 +41,11 @@ jobs:
           bun-version: latest
       - run: bun install
       - run: bun run build
-      - run: bun run build:mac
+      - run: bun run forge:make
       - uses: actions/upload-artifact@v4
         with:
           name: macos-build
-          path: release/
+          path: out/
 
   build-linux:
     if: ${{ github.event.inputs.os == 'all' || github.event.inputs.os == 'linux' }}
@@ -59,8 +57,8 @@ jobs:
           bun-version: latest
       - run: bun install
       - run: bun run build
-      - run: bun run build:linux
+      - run: bun run forge:make
       - uses: actions/upload-artifact@v4
         with:
           name: linux-build
-          path: release/
+          path: out/

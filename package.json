@@ -13,6 +13,8 @@
     "build:win": "bun run build && electron-builder --win",
     "build:mac": "bun run build && electron-builder --mac",
     "build:linux": "bun run build && electron-builder --linux",
+    "forge:make": "electron-forge make",
+    "forge:package": "electron-forge package",
     "dist": "electron-builder",
     "postinstall": "electron-builder install-app-deps"
   },
@@ -22,6 +24,11 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@electron-forge/cli": "^7.9.0",
+    "@electron-forge/maker-deb": "^7.9.0",
+    "@electron-forge/maker-rpm": "^7.9.0",
+    "@electron-forge/maker-squirrel": "^7.9.0",
+    "@electron-forge/maker-zip": "^7.9.0",
     "@types/archiver": "^6.0.2",
     "@types/electron": "^1.4.38",
     "@types/node": "^20.0.0",
