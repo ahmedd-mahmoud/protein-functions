@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DeepFRI Protein Function Predictor</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .container {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        padding: 40px;
+        max-width: 800px;
+        width: 100%;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 40px;
+      }
+
+      .header h1 {
+        color: #333;
+        font-size: 28px;
+        margin-bottom: 10px;
+      }
+
+      .header p {
+        color: #666;
+        font-size: 14px;
+      }
+
+      .form-section {
+        margin-bottom: 30px;
+      }
+
+      .form-group {
+        margin-bottom: 25px;
+      }
+
+      .form-group label {
+        display: block;
+        color: #333;
+        font-weight: 600;
+        margin-bottom: 10px;
+        font-size: 14px;
+      }
+
+      .input-group {
+        display: flex;
+        gap: 10px;
+      }
+
+      .input-display {
+        flex: 1;
+        padding: 12px 16px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        background: #f8f9fa;
+        color: #666;
+        font-size: 13px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .input-display.selected {
+        border-color: #667eea;
+        background: #f0f4ff;
+        color: #333;
+      }
+
+      .btn {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .btn-secondary {
+        background: #667eea;
+        color: white;
+      }
+
+      .btn-secondary:hover {
+        background: #5568d3;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+
+      .btn-primary {
+        width: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 16px;
+        font-size: 16px;
+        margin-top: 20px;
+      }
+
+      .btn-primary:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+      }
+
+      .btn-primary:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .info-badge {
+        display: inline-block;
+        background: #e8f5e9;
+        color: #2e7d32;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-top: 8px;
+      }
+
+      .error-badge {
+        display: inline-block;
+        background: #ffebee;
+        color: #c62828;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-top: 8px;
+      }
+
+      .progress-section {
+        display: none;
+        margin-top: 30px;
+        padding: 20px;
+        background: #f8f9fa;
+        border-radius: 12px;
+      }
+
+      .progress-section.active {
+        display: block;
+      }
+
+      .progress-bar-container {
+        width: 100%;
+        height: 8px;
+        background: #e0e0e0;
+        border-radius: 4px;
+        overflow: hidden;
+        margin: 15px 0;
+      }
+
+      .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        width: 0%;
+        transition: width 0.3s ease;
+      }
+
+      .progress-text {
+        color: #666;
+        font-size: 13px;
+        text-align: center;
+      }
+
+      .results-section {
+        display: none;
+        margin-top: 30px;
+        padding: 20px;
+        background: #f0f4ff;
+        border-radius: 12px;
+        border: 2px solid #667eea;
+      }
+
+      .results-section.active {
+        display: block;
+      }
+
+      .results-section h3 {
+        color: #667eea;
+        margin-bottom: 15px;
+      }
+
+      .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-top: 15px;
+      }
+
+      .stat-card {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+      }
+
+      .stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: #667eea;
+        margin-bottom: 5px;
+      }
+
+      .stat-label {
+        font-size: 12px;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .success-icon {
+        font-size: 48px;
+        text-align: center;
+        margin-bottom: 10px;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid #ffffff;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+        margin-right: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🧬 DeepFRI Protein Function Predictor</h1>
+        <p>Automated protein function prediction using DeepFRI</p>
+      </div>
+
+      <div class="form-section">
+        <div class="form-group">
+          <label>📁 PDB Files Folder</label>
+          <div class="input-group">
+            <div class="input-display" id="pdbFolderDisplay">
+              No folder selected
+            </div>
+            <button class="btn btn-secondary" id="selectPdbBtn">Browse</button>
+          </div>
+          <div id="pdbInfo"></div>
+        </div>
+
+        <div class="form-group">
+          <label>📂 Output Folder</label>
+          <div class="input-group">
+            <div class="input-display" id="outputFolderDisplay">
+              No folder selected
+            </div>
+            <button class="btn btn-secondary" id="selectOutputBtn">
+              Browse
+            </button>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="startBtn" disabled>
+          Start Processing
+        </button>
+      </div>
+
+      <div class="progress-section" id="progressSection">
+        <h3 style="color: #333; margin-bottom: 10px">Processing...</h3>
+        <div class="progress-bar-container">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <p class="progress-text" id="progressText">Initializing...</p>
+      </div>
+
+      <div class="results-section" id="resultsSection">
+        <div class="success-icon">✅</div>
+        <h3>Processing Complete!</h3>
+        <p style="color: #666; margin-bottom: 15px">
+          Results have been saved to your output folder.
+        </p>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="totalProteins">0</div>
+            <div class="stat-label">Total Proteins</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="structureBased">0</div>
+            <div class="stat-label">Structure-Based</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="sequenceBased">0</div>
+            <div class="stat-label">Sequence-Based</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let pdbFolderPath = null;
+      let outputFolderPath = null;
+      let pdbCount = 0;
+
+      // Select PDB Folder
+      document
+        .getElementById("selectPdbBtn")
+        .addEventListener("click", async () => {
+          const result = await window.electronAPI.selectPDBFolder();
+          if (result) {
+            pdbFolderPath = result.path;
+            const display = document.getElementById("pdbFolderDisplay");
+            const infoDiv = document.getElementById("pdbInfo");
+
+            display.textContent = result.path;
+            display.classList.add("selected");
+
+            if (result.valid) {
+              pdbCount = result.pdbCount;
+              infoDiv.innerHTML = `<span class="info-badge">✓ ${result.pdbCount} PDB files found</span>`;
+            } else {
+              pdbFolderPath = null;
+              infoDiv.innerHTML = `<span class="error-badge">⚠ ${result.error}</span>`;
+            }
+
+            updateStartButton();
+          }
+        });
+
+      // Select Output Folder
+      document
+        .getElementById("selectOutputBtn")
+        .addEventListener("click", async () => {
+          const result = await window.electronAPI.selectOutputFolder();
+          if (result) {
+            outputFolderPath = result;
+            const display = document.getElementById("outputFolderDisplay");
+            display.textContent = result;
+            display.classList.add("selected");
+            updateStartButton();
+          }
+        });
+
+      // Start Processing
+      document
+        .getElementById("startBtn")
+        .addEventListener("click", async () => {
+          if (!pdbFolderPath || !outputFolderPath) return;
+
+          const startBtn = document.getElementById("startBtn");
+          const progressSection = document.getElementById("progressSection");
+          const resultsSection = document.getElementById("resultsSection");
+
+          startBtn.disabled = true;
+          startBtn.innerHTML = '<span class="spinner"></span>Processing...';
+          progressSection.classList.add("active");
+          resultsSection.classList.remove("active");
+
+          const result = await window.electronAPI.startProcessing({
+            pdbFolderPath,
+            outputFolderPath,
+          });
+
+          if (result.success) {
+            progressSection.classList.remove("active");
+            resultsSection.classList.add("active");
+
+            document.getElementById("totalProteins").textContent =
+              result.statistics.totalProteins;
+            document.getElementById("structureBased").textContent =
+              result.statistics.structureBasedPredictions;
+            document.getElementById("sequenceBased").textContent =
+              result.statistics.sequenceBasedPredictions;
+
+            startBtn.innerHTML = "Start Processing";
+            startBtn.disabled = false;
+          } else {
+            alert("Error: " + result.error);
+            startBtn.innerHTML = "Start Processing";
+            startBtn.disabled = false;
+            progressSection.classList.remove("active");
+          }
+        });
+
+      // Listen for progress updates
+      window.electronAPI.onProgress((data) => {
+        document.getElementById("progressText").textContent = data.message;
+        if (data.progress !== undefined) {
+          document.getElementById("progressBar").style.width =
+            data.progress + "%";
+        }
+      });
+
+      // Listen for errors
+      window.electronAPI.onError((data) => {
+        alert("Error: " + data.message);
+        document.getElementById("startBtn").disabled = false;
+        document.getElementById("startBtn").innerHTML = "Start Processing";
+        document.getElementById("progressSection").classList.remove("active");
+      });
+
+      function updateStartButton() {
+        const startBtn = document.getElementById("startBtn");
+        startBtn.disabled = !(pdbFolderPath && outputFolderPath);
+      }
+    </script>
+  </body>
+</html>

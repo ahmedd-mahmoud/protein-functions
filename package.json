@@ -1,16 +1,86 @@
 {
-  "name": "deepfri-automation",
+  "name": "deepfri-desktop",
   "version": "1.0.0",
-  "description": "Automated DeepFRI protein function prediction",
-  "main": "main.ts",
+  "description": "Desktop application for automated DeepFRI protein function prediction",
+  "main": "./dist/electron/main.js",
+  "author": "ahmedd-mahmoud",
+  "license": "MIT",
   "scripts": {
-    "start": "bun run main.ts"
+    "dev": "concurrently \"bun run dev:electron\" \"bun run dev:vite\"",
+    "dev:electron": "tsc && electron dist/electron/main.js",
+    "dev:vite": "vite",
+    "build": "tsc",
+    "build:win": "bun run build && electron-builder --win",
+    "build:mac": "bun run build && electron-builder --mac",
+    "build:linux": "bun run build && electron-builder --linux",
+    "dist": "electron-builder",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
+    "archiver": "^6.0.1",
     "puppeteer": "^21.0.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0"
+    "@types/archiver": "^6.0.2",
+    "@types/electron": "^1.4.38",
+    "@types/node": "^20.0.0",
+    "concurrently": "^8.2.0",
+    "electron": "^38.2.1",
+    "electron-builder": "^24.6.4",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.0"
+  },
+  "build": {
+    "appId": "com.yourlab.deepfri",
+    "productName": "DeepFRI Desktop",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "dist/**/*",
+      "assets/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "sign": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "DeepFRI Desktop"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Science"
+    }
   }
 }

@@ -1,0 +1,64 @@
+name: Build DeepFRI Desktop
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: 'Operating System to build for'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - windows
+          - macos
+          - linux
+
+jobs:
+  build-windows:
+    if: ${{ github.event.inputs.os == 'all' || github.event.inputs.os == 'windows' }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bun run build
+      - run: bun run build:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: release/
+
+  build-macos:
+    if: ${{ github.event.inputs.os == 'all' || github.event.inputs.os == 'macos' }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bun run build
+      - run: bun run build:mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: release/
+
+  build-linux:
+    if: ${{ github.event.inputs.os == 'all' || github.event.inputs.os == 'linux' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bun run build
+      - run: bun run build:linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: release/

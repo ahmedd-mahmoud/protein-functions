@@ -1,6 +1,64 @@
-.venv
-pdb_files
-node_modules
-deepfri_results.xlsx
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+bun.lockb
+
+# Build outputs
+dist/
+release/
+out/
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Testing
+coverage/
+.nyc_output/
+
+# Puppeteer
+.local-chromium/
+
+# Output folders (user data)
+output/
+pdb_files/
 *.zip
-output
+
+# Code signing
+*.pfx
+*.p12
+*.pem
+certs/
+
+# Electron
+dist_electron/

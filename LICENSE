@@ -1,0 +1,78 @@
+MIT License
+
+Copyright (c) 2024 [Your Lab Name / Your Institution]
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+## Third-Party Licenses
+
+This software uses the following open-source packages:
+
+### Electron
+- License: MIT
+- URL: https://github.com/electron/electron
+
+### Puppeteer
+- License: Apache-2.0
+- URL: https://github.com/puppeteer/puppeteer
+
+### SheetJS (xlsx)
+- License: Apache-2.0
+- URL: https://github.com/SheetJS/sheetjs
+
+### Archiver
+- License: MIT
+- URL: https://github.com/archiverjs/node-archiver
+
+### TypeScript
+- License: Apache-2.0
+- URL: https://github.com/microsoft/TypeScript
+
+---
+
+## DeepFRI Service
+
+This software uses the DeepFRI web service:
+
+- DeepFRI Paper: Gligorijević et al., Nature Communications (2021)
+- URL: https://beta.deepfri.flatironinstitute.org
+- Please cite the original DeepFRI paper when using this software in research
+
+---
+
+## Citation
+
+If you use this software in your research, please cite:
+
+```
+DeepFRI Desktop v1.0.0
+[Your Lab Name], [Your Institution]
+GitHub: https://github.com/yourlab/deepfri-desktop
+```
+
+And the original DeepFRI paper:
+
+```
+Gligorijević, V., Renfrew, P. D., Kosciolek, T., et al. (2021).
+Structure-based protein function prediction using graph convolutional networks.
+Nature Communications, 12(1), 3168.
+https://doi.org/10.1038/s41467-021-23303-9
+```
