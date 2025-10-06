@@ -1,5 +1,5 @@
 import puppeteer from "puppeteer";
-import { readdir, readFile, mkdir, copyFile } from "fs/promises";
+import { readdir, mkdir, copyFile } from "fs/promises";
 import { join } from "path";
 import type { ProcessingResult, ProgressCallback } from "../types";
 
@@ -180,7 +180,9 @@ export class DeepFRIAutomator {
         downloadPath: tagsOutputPath,
       });
 
-      const filesBefore = await readdir(tagsOutputPath).catch(() => [] as string[]);
+      const filesBefore = await readdir(tagsOutputPath).catch(
+        () => [] as string[]
+      );
 
       const downloadClicked = await this.page.evaluate(() => {
         const allElements = Array.from(document.querySelectorAll("*"));
@@ -212,7 +214,9 @@ export class DeepFRIAutomator {
       if (downloadClicked) {
         await this.page.waitForTimeout(5000);
 
-        const filesAfter = await readdir(tagsOutputPath).catch(() => [] as string[]);
+        const filesAfter = await readdir(tagsOutputPath).catch(
+          () => [] as string[]
+        );
         const newFiles = filesAfter.filter((f) => !filesBefore.includes(f));
 
         if (newFiles.length > 0) {
@@ -246,37 +250,33 @@ export class DeepFRIAutomator {
 
     return await this.page.evaluate(() => {
       const extractTop3Predictions = (sectionName: string) => {
-        const tables = Array.from(document.querySelectorAll("table"));
         const sectionHeader = `${sectionName} - GO Term Predictions`;
-        const allElements = Array.from(document.querySelectorAll("*"));
+        const titleElements = Array.from(
+          document.querySelectorAll("mat-card-title")
+        );
 
-        const sectionEl = allElements.find((el) => {
+        const titleEl = titleElements.find((el) => {
           const text = el.textContent?.trim() || "";
-          return (
-            text.includes(sectionHeader) &&
-            !text.includes("No predictions above threshold")
-          );
+          return text === sectionHeader;
         });
 
-        if (!sectionEl) return [];
+        if (!titleEl) return [];
 
-        let closestTable: any = null;
-        let minDistance = Infinity;
+        const card = titleEl.closest("mat-card");
+        if (!card) return [];
 
-        tables.forEach((table) => {
-          const sectionRect = sectionEl.getBoundingClientRect();
-          const tableRect = table.getBoundingClientRect();
-          const distance = Math.abs(tableRect.top - sectionRect.bottom);
+        const contentEl = card.querySelector("mat-card-content");
+        if (!contentEl) return [];
 
-          if (distance < minDistance && tableRect.top > sectionRect.top) {
-            minDistance = distance;
-            closestTable = table;
-          }
-        });
+        const contentText = contentEl.textContent?.trim() || "";
+        if (contentText.includes("No predictions above threshold")) {
+          return [];
+        }
 
-        if (!closestTable) return [];
+        const table = contentEl.querySelector("table");
+        if (!table) return [];
 
-        const rows = closestTable.querySelectorAll("tr");
+        const rows = table.querySelectorAll("tr");
         const results = [];
 
         for (let i = 1; i <= Math.min(3, rows.length - 1); i++) {
